@@ -3,142 +3,69 @@ import pygame
 import random
 import time
 
-class GoBoard():
-    def __init__(self, initial_board: np.ndarray):
-        self.board = initial_board
-        self.height = initial_board.shape[0]
-        self.width = initial_board.shape[1]
-
-    def is_on_board(self, pos: tuple[int, int]):
-        return 0 <= pos[1] < self.width and 0 <= pos[0] < self.height
-
-    def place_piece(self, player_num: int, pos: tuple[int, int]) -> bool:
-        if not self.is_on_board(pos):
-            # raise Exception("Shouldn't be placing piece outside of bounds")
-            return False
-
-        if self.board[pos] != 0:
-            return False
-
-        self.board[pos] = player_num
-
-        other_player_num = self.other_player(player_num)
-        did_kill_group = False
-        for position in self.get_surrounding_positions(pos):
-            if self.board[position] == other_player_num:
-                is_group_dead, group_set = self.is_group_dead(position)
-                if is_group_dead:
-                    did_kill_group = True
-                    for group_pos in group_set:
-                        self.board[group_pos] = 0
-
-        if did_kill_group:
-            return True
-
-        is_group_dead, group_set = self.is_group_dead(pos)
-        if is_group_dead:
-            self.board[pos] = 0
-            return False
-
-        return True
-
-    def other_player(self, player_num: int):
-        return 2 if player_num == 1 else 1
-
-    def get_surrounding_positions(self, pos: tuple[int, int], player_num_filter: int|None = None):
-        if player_num_filter is None:
-            return [position for position in [(pos[0] + 1, pos[1]), (pos[0] - 1, pos[1]), (pos[0], pos[1] + 1), (pos[0], pos[1] - 1)] if self.is_on_board(position)]
-        else:
-            return [position for position in [(pos[0] + 1, pos[1]), (pos[0] - 1, pos[1]), (pos[0], pos[1] + 1), (pos[0], pos[1] - 1)] if self.is_on_board(position) and self.board[position] == player_num_filter]
-
-    def is_group_dead(self, pos: tuple[int, int]) -> tuple[bool, set[tuple[int, int]]]:
-        player_num = self.board[pos]
-        other_player_num = self.other_player(player_num)
-        group_positions: set[tuple[int, int]] = set()
-
-        if player_num in [0, -1]:
-            return False, group_positions
-
-        def group_helper(current_pos: tuple[int, int]) -> bool:
-            group_positions.add(current_pos)
-            for position in self.get_surrounding_positions(current_pos):
-                board_num = self.board[position]
-                if position in group_positions or board_num == other_player_num:
-                    continue
-                if board_num == 0:
-                    return False
-                if not group_helper(position):
-                    return False
-
-            return True
-
-        return group_helper(pos), group_positions
-
-    def __str__(self):
-        return self.board.__str__()
+from go_board import GoBoard
+from mcts_agent import MCTSAgent
+from constants import *
 
 def print_board(go_board: GoBoard):
     print("\033[H\033[2J", end="")
     print(go_board)
     time.sleep(2)
 
-def draw(screen, width: int, height: int, cell_size: int, x_offset: int, y_offset: int, go_board: GoBoard):
-    grid_color = (255, 255, 255)
-    player_one_color = (255, 255, 255)
-    player_one_outline_color = (255, 255, 255)
-    player_two_color = (50, 50, 50)
-    player_two_outline_color = (255, 255, 255)
-    open_spot_color = (150, 150, 150)
+def draw_grid(screen, grid_color: int, width: int, height: int, cell_size: int, x_offset: int, y_offset: int):
+    end_x = (width - 1) * cell_size + x_offset
+    end_y = (height - 1) * cell_size + y_offset
+    for x in range(0, width):
+        new_x = (x * cell_size) + x_offset
+        pygame.draw.line(screen, grid_color, (new_x, y_offset), (new_x, end_y))
 
-    def draw_grid():
-        end_x = (width - 1) * cell_size + x_offset
-        end_y = (height - 1) * cell_size + y_offset
-        for x in range(0, width):
-            new_x = (x * cell_size) + x_offset
-            pygame.draw.line(screen, grid_color, (new_x, y_offset), (new_x, end_y))
+    for y in range(0, height):
+        new_y = (y * cell_size) + y_offset
+        pygame.draw.line(screen, grid_color, (x_offset, new_y), (end_x, new_y))
 
-        for y in range(0, height):
+def draw_board(go_board: GoBoard, screen, player_one_color, player_one_outline_color, player_two_color, player_two_outline_color, open_spot_color, width, height, cell_size, x_offset, y_offset):
+    for x in range(width):
+        new_x = (x * cell_size) + x_offset
+        for y in range(height):
             new_y = (y * cell_size) + y_offset
-            pygame.draw.line(screen, grid_color, (x_offset, new_y), (end_x, new_y))
+            match go_board.board[y][x]:
+                case 0:
+                    pygame.draw.circle(screen, open_spot_color, (new_x, new_y), 5, 0)
+                case 1:
+                    pygame.draw.circle(screen, player_one_color, (new_x, new_y), 15, 0)
+                    pygame.draw.circle(screen, player_one_outline_color, (new_x, new_y), 15, 1)
+                case 2:
+                    pygame.draw.circle(screen, player_two_color, (new_x, new_y), 15, 0)
+                    pygame.draw.circle(screen, player_two_outline_color, (new_x, new_y), 15, 1)
 
-    def draw_board():
-        for x in range(width):
-            new_x = (x * cell_size) + x_offset
-            for y in range(height):
-                new_y = (y * cell_size) + y_offset
-                match go_board.board[y][x]:
-                    case 0:
-                        pygame.draw.circle(screen, open_spot_color, (new_x, new_y), 5, 0)
-                    case 1:
-                        pygame.draw.circle(screen, player_one_color, (new_x, new_y), 15, 0)
-                        pygame.draw.circle(screen, player_one_outline_color, (new_x, new_y), 15, 1)
-                    case 2:
-                        pygame.draw.circle(screen, player_two_color, (new_x, new_y), 15, 0)
-                        pygame.draw.circle(screen, player_two_outline_color, (new_x, new_y), 15, 1)
-    draw_grid()
-    draw_board()
+def draw_player_num(player_num, player_one_color, player_two_color, screen, font: pygame.font.Font):
+    color = player_one_color if player_num == 1 else player_two_color
+    text_surface = font.render(f"Current Move: {player_num}", True, color)
+    text_rect = text_surface.get_rect()
+    text_rect.topleft = (0, 0)
+    screen.blit(text_surface, text_rect)
 
 def main():
-    screen_width = 1280
-    screen_height = 720
-    cell_size = 40
-    board_width = 10
-    board_height = 10
-    x_offset = int((screen_width / 2) - (board_width * cell_size) / 2)
-    y_offset = int((screen_height / 2) - (board_height * cell_size) / 2)
-    board = np.ndarray((board_height, board_width), dtype=np.int8)
+    x_offset = int((SCREEN_WIDTH / 2) - (BOARD_WIDTH * CELL_SIZE) / 2)
+    y_offset = int((SCREEN_HEIGHT / 2) - (BOARD_HEIGHT * CELL_SIZE) / 2)
+    board = np.ndarray((BOARD_HEIGHT, BOARD_WIDTH), dtype=np.int8)
     board.fill(0)
     go_board = GoBoard(board)
 
+    max_iterations = 1000
+    max_simulation_depth = 30
+    mcts_agent = MCTSAgent(2, max_iterations, max_simulation_depth)
+
     # pygame setup
     pygame.init()
-    screen = pygame.display.set_mode((screen_width, screen_height))
+    screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
     clock = pygame.time.Clock()
     running = True
 
     i = 0
+    player_num = (i % 2) + 1
+    other_player_num = ((i + 1) % 2) + 1
     while running:
-        player_num = (i % 2) + 1
         mouse_pos = ()
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -152,15 +79,58 @@ def main():
 
         place_pos = ()
         if player_num == 1 and mouse_pos:
-            place_pos = (int((mouse_pos[1] - y_offset + cell_size / 2) // cell_size), int((mouse_pos[0] - x_offset + cell_size / 2) // cell_size))
+            place_pos = (int((mouse_pos[1] - y_offset + CELL_SIZE / 2) // CELL_SIZE), int((mouse_pos[0] - x_offset + CELL_SIZE / 2) // CELL_SIZE))
         elif player_num == 2:
-            place_pos = (random.randint(0, board_height - 1), random.randint(0, board_width - 1))
+            # place_pos = (random.randint(0, board_height - 1), random.randint(0, board_width - 1))
+            place_pos = mcts_agent.get_move(go_board)
 
         if place_pos:
             if go_board.place_piece(player_num, place_pos):
+                if go_board.is_winning_state(player_num):
+                    print(f"Player #{player_num} Wins!")
+                    break
+                elif go_board.is_winning_state(other_player_num):
+                    print(f"Player #{other_player_num} Wins!")
+                    break
+                elif go_board.is_tie():
+                    print(f"Game ended in a tie")
+                    break
+                print(f"Pieces captures: {go_board.captured_piece_counts}")
                 i += 1
+                player_num = (i % 2) + 1
+                print(f"Player #{player_num}'s Turn")
 
-        draw(screen, board_width, board_height, cell_size, x_offset, y_offset, go_board)
+        draw_grid(
+            screen,
+            GRID_COLOR,
+            BOARD_WIDTH,
+            BOARD_HEIGHT,
+            CELL_SIZE,
+            x_offset,
+            y_offset
+        )
+        draw_board(
+            go_board,
+            screen,
+            PLAYER_ONE_COLOR,
+            PLAYER_ONE_OUTLINE_COLOR,
+            PLAYER_TWO_COLOR,
+            PLAYER_TWO_OUTLINE_COLOR,
+            OPEN_SPOT_COLOR,
+            BOARD_WIDTH,
+            BOARD_HEIGHT,
+            CELL_SIZE,
+            x_offset,
+            y_offset
+        )
+        font = pygame.font.Font(None, 36)
+        draw_player_num(
+            player_num,
+            PLAYER_ONE_TEXT_COLOR,
+            PLAYER_TWO_TEXT_COLOR,
+            screen,
+            font
+        )
 
         pygame.display.flip()
 
