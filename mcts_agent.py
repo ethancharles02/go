@@ -1,5 +1,5 @@
 import numpy as np
-from random import choice
+import random
 
 from go_board import GoBoard
 from go_agent import GoAgent
@@ -27,7 +27,7 @@ class MCTSNode:
         max_move = None
 
         for m in self.moves:
-            if self.children[m].num_visits > max_num_visits:
+            if self.children[m] is not None and self.children[m].num_visits > max_num_visits:
                 max_num_visits = self.children[m].num_visits
                 max_move = m
         return max_move
@@ -68,18 +68,21 @@ class MCTSNode:
         if self.board.is_winning_state(self.player_num):
             result = -1
 
-        elif self.board.is_winning_state(self.other_player_num):
+        # self.terminal (no moves for self.player_num) plus the capture comparison
+        # is exactly is_winning_state(other_player_num), without rescanning the board
+        elif self.terminal and self.board.captured_piece_counts[self.other_player_num - 1] > self.board.captured_piece_counts[self.player_num - 1]:
             result = 1
 
         else:
-            valid_moves = self.board.get_available_moves(self.player_num)
+            valid_moves = set(self.moves)
             new_board = self.board.copy()
             players = [self.player_num, self.other_player_num]
             i = 0
             while len(valid_moves) != 0 and result is None and i < max_simulation_depth:
                 cur_player = players[i % 2]
 
-                move = choice(list(valid_moves))
+                move = random.choice(list(valid_moves))
+                valid_moves.discard(move)
                 if not new_board.place_piece(cur_player, move):
                     raise Exception("Failed to place a piece in simulation")
 

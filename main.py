@@ -4,6 +4,7 @@ import random
 import time
 
 from go_board import GoBoard
+from go_group import GoGroup
 from mcts_agent import MCTSAgent
 from constants import *
 
@@ -48,12 +49,12 @@ def draw_player_num(player_num, player_one_color, player_two_color, screen, font
 def main():
     x_offset = int((SCREEN_WIDTH / 2) - (BOARD_WIDTH * CELL_SIZE) / 2)
     y_offset = int((SCREEN_HEIGHT / 2) - (BOARD_HEIGHT * CELL_SIZE) / 2)
-    board = np.ndarray((BOARD_HEIGHT, BOARD_WIDTH), dtype=np.int8)
+    board = np.ndarray((BOARD_HEIGHT, BOARD_WIDTH), dtype=GoGroup)
     board.fill(0)
     go_board = GoBoard(board)
 
     max_iterations = 1000
-    max_simulation_depth = 30
+    max_simulation_depth = 20
     mcts_agent = MCTSAgent(2, max_iterations, max_simulation_depth)
 
     # pygame setup
@@ -80,9 +81,14 @@ def main():
         place_pos = ()
         if player_num == 1 and mouse_pos:
             place_pos = (int((mouse_pos[1] - y_offset + CELL_SIZE / 2) // CELL_SIZE), int((mouse_pos[0] - x_offset + CELL_SIZE / 2) // CELL_SIZE))
+        # elif player_num == 2 and mouse_pos:
+        #     place_pos = (int((mouse_pos[1] - y_offset + CELL_SIZE / 2) // CELL_SIZE), int((mouse_pos[0] - x_offset + CELL_SIZE / 2) // CELL_SIZE))
         elif player_num == 2:
-            # place_pos = (random.randint(0, board_height - 1), random.randint(0, board_width - 1))
+            # time.sleep(0.25)
+            # place_pos = go_board.get_available_moves(player_num).pop()
+            old_time = time.monotonic()
             place_pos = mcts_agent.get_move(go_board)
+            print(f"MCTS time: {(time.monotonic() - old_time):.2f}")
 
         if place_pos:
             if go_board.place_piece(player_num, place_pos):
