@@ -36,12 +36,22 @@ class GoBoard():
     # def get_piece_counts(self) -> tuple[int, int]:
     #     return (np.count_nonzero(self.board == 1), np.count_nonzero(self.board == 2))
 
+    def get_scores(self) -> list[int, int]:
+        scores = [0, 0]
+        for group in self.groups:
+            if group.player_num > 0:
+                scores[group.player_num - 1] += len(group.piece_positions) + len(group.open_positions)
+
+        return scores
+
     # TODO change winning state to be accurate to actual go games with territory captured? (calculated based on number of empty spots the enemy can't capture + your placed nodes)
     def is_winning_state(self, player_num: int) -> bool:
-        return len(self.get_available_moves(self.other_player(player_num))) == 0 and self.captured_piece_counts[player_num - 1] > self.captured_piece_counts[self.other_player(player_num) - 1]
+        scores = self.get_scores()
+        return len(self.get_available_moves(self.other_player(player_num))) == 0 and scores[player_num - 1] > scores[self.other_player(player_num) - 1]
 
     def is_tie(self):
-        return len(self.get_available_moves(1)) == 0 and len(self.get_available_moves(2)) == 0 and self.captured_piece_counts[0] == self.captured_piece_counts[1]
+        scores = self.get_scores()
+        return len(self.get_available_moves(1)) == 0 and len(self.get_available_moves(2)) == 0 and scores[0] == scores[1]
 
     def is_on_board(self, pos: tuple[int, int]):
         return 0 <= pos[1] < self.width and 0 <= pos[0] < self.height

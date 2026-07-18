@@ -65,13 +65,11 @@ class MCTSNode:
 
     def simulate(self, max_simulation_depth: int) -> int:
         result = None
-        if self.board.is_winning_state(self.player_num):
-            result = -1
-
-        # self.terminal (no moves for self.player_num) plus the capture comparison
-        # is exactly is_winning_state(other_player_num), without rescanning the board
-        elif self.terminal and self.board.captured_piece_counts[self.other_player_num - 1] > self.board.captured_piece_counts[self.player_num - 1]:
-            result = 1
+        scores = self.board.get_scores()
+        # self.terminal (no moves for self.player_num) plus the capture comparison is exactly
+        # is_winning_state(other_player_num), without rescanning the board
+        if self.board.is_winning_state(self.player_num) or self.terminal and scores[self.other_player_num - 1] > scores[self.player_num - 1]:
+            result = scores[self.other_player_num - 1] - scores[self.player_num - 1]
 
         else:
             valid_moves = set(self.moves)
@@ -89,9 +87,8 @@ class MCTSNode:
                 i += 1
                 valid_moves = new_board.get_available_moves(players[i % 2])
 
-            player_piece_count = new_board.captured_piece_counts[self.player_num - 1]
-            other_player_piece_count = new_board.captured_piece_counts[self.other_player_num - 1]
-            result = other_player_piece_count - player_piece_count
+            new_scores = new_board.get_scores()
+            result = new_scores[self.other_player_num - 1] - new_scores[self.player_num - 1]
 
         self.num_wins += result
         self.num_visits += 1

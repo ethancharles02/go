@@ -104,6 +104,7 @@ def main():
                 print(f"Pieces captures: {go_board.captured_piece_counts}")
                 i += 1
                 player_num = (i % 2) + 1
+                other_player_num = ((i + 1) % 2) + 1
                 print(f"Player #{player_num}'s Turn")
 
         draw_grid(
